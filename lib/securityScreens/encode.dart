@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'package:get/get_connect/http/src/_http/_io/_file_decoder_io.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+
 import 'package:avagaman/securityScreens/home.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -25,400 +29,130 @@ class Encode extends StatefulWidget {
 }
 
 class _EncodeState extends State<Encode> {
-  // late final imgBytes;
-  List<CameraDescription>? cameras; //list out the camera available
-  CameraController? controller; //controller for camera
-  late final imgXFile;
-  File? _image;
-  String textData = '';
-  final apiUrl = 'https://awagaman.onrender.com/';
-  final ImagePicker imagePicker = ImagePicker();
-  getImageFromGallery() async {
-    imgXFile = await imagePicker.pickImage(source: ImageSource.camera);
-    // imgBytes = await imgXFile!.readAsBytes();
-    setState(() {
-      imgXFile;
-      // imgBytes;
-    });
-  }
-  // void initState() {
-  //   loadCamera();
-  //   super.initState();
-  // }
+  late CameraController _cameraController;
+  late Future<void> _initializeControllerFuture;
+  TextEditingController textController = TextEditingController();
 
-  // loadCamera() async {
-  //   cameras = await availableCameras();
-  //   if (cameras != null) {
-  //     controller = CameraController(cameras![0], ResolutionPreset.max);
-  //     //cameras[0] = first camera, change to 1 to another camera
+  @override
+  void initState() {
+    super.initState();
 
-  //     controller!.initialize().then((_) {
-  //       if (!mounted) {
-  //         return;
-  //       }
-  //       setState(() {});
-  //     });
-  //   } else {
-  //     print("NO any camera found");
-  //   }
-  // }
-
-  // Uint8List encodeImageAsJpg(Uint8List imgData) {
-  //   // Decode the image data
-  //   final image = img.decodeImage(imgData);
-
-  //   // Encode the image as a JPEG byte array
-  //   final jpgData = img.encodeJpg(image!);
-
-  //   return Uint8List.fromList(jpgData);
-  // }
-
-  // String bytesToHex(List<int> bytes) {
-  //   final hexChars = List<String>.generate(bytes.length,
-  //       (int index) => bytes[index].toRadixString(16).padLeft(2, '0'));
-  //   return hexChars.join();
-  // }
-
-  Future<void> _getImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    
-    setState(() {
-      if (pickedFile != null) {
-        _image = File(pickedFile.path);
-      } else {
-        print('No image selected.');
-      }
-    });
+    // Initialize the camera
+    _initializeControllerFuture = _initializeCamera();
   }
 
-  Future<void> _uploadImage() async {
-    // final files;
-    if (_image == null || textData.isEmpty) {
-      return;
-    }
-
-    final response = await http.post(
-      Uri.parse(apiUrl + '/upload'), // Append '/upload' to your API endpoint
-      headers: {'Content-Type': 'multipart/form-data'},
-      body: {
-        'text': textData,
-      },
-      files: [
-        http.MultipartFile(
-          'image',
-          _image!.readAsBytes().asStream(),
-          _image!.lengthSync(),
-          filename: 'image.jpg',
-          contentType:
-              MediaType('image', 'jpeg'), // Adjust the MIME type as needed.
-        ),
-      ],
+  Future<void> _initializeCamera() async {
+    final cameras = await availableCameras();
+    final frontCamera = cameras.firstWhere(
+      (camera) => camera.lensDirection == CameraLensDirection.front,
+      orElse: () =>
+          cameras.first, // Use the first camera if no front camera is found.
     );
 
-    if (response.statusCode == 200) {
-      final jsonResponse = json.decode(response.body);
-      print(jsonResponse);
+    _cameraController = CameraController(
+      frontCamera, // Use the front camera here
+      ResolutionPreset.high,
+    );
+
+    return _cameraController.initialize();
+  }
+
+  Future<Uint8List> imageToBytes(String imagePath) async {
+    img.Image? image = img.decodeImage(File(imagePath).readAsBytesSync());
+
+    if (image != null) {
+      Uint8List bytes = Uint8List.fromList(img.encodeJpg(image));
+      return bytes;
     } else {
-      print('Error uploading image: ${response.statusCode}');
+      throw Exception('Failed to load and encode the image.');
     }
   }
-  // postFrameToApi() async {
-  //   final apiUrl = Uri.parse('https://awagaman.onrender.com/encode_face');
-  //   // final apiUrl = 'https://awagaman.onrender.com/encode_face';
-  //   final textData = '202151149';
-  //   final picker = ImagePicker();
-  //   final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-  //   // final imgXFile = await imagePicker.pickImage(source: ImageSource.gallery);
 
-  //   // File imageFile = File(imgXFile!.path);
-  //   Uint8List imgBytes = await imgXFile!.readAsBytes();
+  Future<void> _captureAndUpload() async {
+    try {
+      await _initializeControllerFuture;
 
-  //   // final Uint8List hexBytes =
-  //   //     Uint8List.fromList(hex.encode(imgBytes).codeUnits);
-  //   // Uint8List hexBytes = Uint8List.fromList(HEX.encode(imgBytes).codeUnits);
-  //   // final hexString = bytesToHex(imgBytes);
-  //   // Uint8List hexString = hex.encode(imgBytes);
-  //   // final Uint8List jpgBytes = encodeImageAsJpg(imgBytes);
-  //   // final requestBody = {
-  //   //   'data': textData,
-  //   //   // 'data': base64Encode(imgBytes),
-  //   //   //dat // Convert Uint8List to base64
-  //   //   'file': base64Encode(imgBytes),
-  //   // };
+      // Capture a picture
+      final XFile capturedImage = await _cameraController.takePicture();
 
-  //   // if (imageFile.existsSync()) {
-  //   if (imgXFile != null) {
-  //     // final imgBytes = Uint8List.fromList(bytes);
-  //     // String imgBase64 = base64Encode(imgBytes);
-  //     print(imgXFile!.path);
-  //     // final response = await http.post(
-  //     //   Uri.parse(apiUrl),
-  //     //   headers: {
-  //     //     'Content-Type': 'application/json',
-  //     //   },
-  //     //   body: json.encode(requestBody),
-  //     // );
-  //     final request = http.MultipartRequest('POST', apiUrl);
-  //     files:
-  //     [
-  //       http.MultipartFile(
-  //         'image',
-  //         imgXFile!.readAsBytes().asStream(),
-  //         imgXFile!.lengthSync(),
-  //         filename: 'image.jpg',
-  //         contentType:
-  //             MediaType('image', 'jpeg'), // Adjust the MIME type as needed.
-  //       ),
-  //     ];
-  //     request.fields['text'] = textData;
-  //     print(base64Encode(imgBytes));
-  //     request.files.add(
-  //       http.MultipartFile(
-  //         'image',
-  //         http.ByteStream.fromBytes(imgBytes),
-  //         imgBytes.length,
-  //         filename: 'image.jpg',
-  //         contentType:
-  //             MediaType('image', 'jpeg'), // Adjust the MIME type as needed.
-  //       ),
-  //     );
+      Uint8List imgBytes = await imageToBytes(capturedImage.path);
 
-  //     // request.files.add( http.MultipartFile(
-  //     //   //   // imgXFile
-  //     //   'image',
-  //     //   // imgXFile!.path,
-  //     //   imgBytes,
-  //     //   // imgBytes.length,
-  //     //   filename: 'image.jpg',
-  //     //   contentType: MediaType('image', 'jpeg'),
-  //     // ));
-  //     // request.fields['image'] = imgBytes;
-  //     print(imgBytes);
-  //     // print(hexString);
-  //     // Send the request and get the response
-  //     var response = await request.send();
-  //     if (response.statusCode == 200) {
-  //       var responseData = await response.stream.bytesToString();
-  //       print('Response: $responseData');
-  //     } else {
-  //       print("Error sending frame. Status code: ${response.statusCode}");
-  //     }
-  //     // Now you can proceed with using imgBytes and imgBase64
-  //   } else {
-  //     print('No image picked.');
-  //   }
-  //   // } else {
-  //   //   print("No image file");
-  //   // }
-  //   // final bytes = await rootBundle.load(image!.path); // Adjust the image path
-  //   // final picker = ImagePicker();
-  //   // final pickedFile = await picker.pickImage(source: ImageSource.camera);
-  //   // final bytes = await pickedFile!.readAsBytes();
-  //   // Uint8List imgBytes = Uint8List.fromList(bytes);
-  //   // String imgBase64 = base64Encode(imgBytes);
-  //   // final picker = ImagePicker();
-  //   // final pickedFile = await picker.pickImage(source: ImageSource.camera);
+      // Prepare the data to be sent
+      Map<String, String> data = {
+        'text': 'Adam',
+        // You can add more text data as needed
+      };
 
-  //   // Uint8List imgBytes = bytes.buffer.asUint8List();
-  //   // String imgBase64 = base64Encode(imgBytes);
-  // }
+      // Prepare the image file
+      var uri = Uri.parse("https://awagaman.onrender.com/encode_face");
+      var request = http.MultipartRequest('POST', uri)
+        ..fields.addAll(data)
+        ..files.add(http.MultipartFile.fromBytes(
+          'image',
+          imgBytes,
+          filename: 'image.jpg',
+          contentType: MediaType('image', 'jpeg'), // Adjust MIME type
+        ));
 
-  // bool valueMetal = false;
-  // bool valuePaper = false;
-  // bool valueElectronic = false;
-  // bool valueWooden = false;
-  // bool valueConstruction = false;
+      // Send the multipart request
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        print('Image and text sent successfully');
+        await for (var chunk in response.stream.transform(utf8.decoder)) {
+          print(chunk);
+        }
+      } else {
+        print('Failed to send image and text');
+        print('Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _cameraController.dispose();
+    textController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Capture Image from Camera"),
-        backgroundColor: Colors.blue,
+        title: Text('Capture and Send Image'),
       ),
-      body: SafeArea(
-        child: ListView(
-          children: [
-            GestureDetector(
-              onTap: () {
-                getImageFromGallery();
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            child: FutureBuilder<void>(
+              future: _initializeControllerFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done) {
+                  return CameraPreview(_cameraController);
+                } else {
+                  return Center(child: CircularProgressIndicator());
+                }
               },
-              child: CircleAvatar(
-                backgroundColor: Colors.white,
-                backgroundImage: imgXFile == null
-                    ? null
-                    : FileImage(File(
-                        imgXFile!.path,
-                      )),
-                radius: MediaQuery.of(context).size.width * 0.20,
-                child: imgXFile == null
-                    ? Icon(
-                        Icons.add_photo_alternate,
-                        color: Colors.grey,
-                        size: MediaQuery.of(context).size.width * 0.20,
-                      )
-                    : null,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: textController,
+              decoration: InputDecoration(
+                labelText: 'Enter Text',
               ),
             ),
-            ElevatedButton(
-                onPressed: () {
-                  postFrameToApi();
-                },
-                child: Text("Submit"))
-            // Padding(
-            //   padding: const EdgeInsets.all(8.0),
-            //   child: Container(
-            //       child: Column(children: [
-            //     Container(
-            //         height: 600,
-            //         width: 350,
-            //         child: controller == null
-            //             ? Center(child: Text("Loading Camera..."))
-            //             : !controller!.value.isInitialized
-            //                 ? Center(
-            //                     child: CircularProgressIndicator(),
-            //                   )
-            //                 : CameraPreview(controller!)),
-            //     SizedBox(
-            //       height: 25,
-            //     ),
-            //     ElevatedButton.icon(
-            //       //image capture button
-            //       onPressed: () async {
-            //         try {
-            //           if (controller != null) {
-            //             //check if contrller is not null
-            //             if (controller!.value.isInitialized) {
-            //               //check if controller is initialized
-            //               imgXFile =
-            //                   await controller!.takePicture(); //capture image
-            //               setState(() {
-            //                 //update UI
-            //               });
-            //             }
-            //           }
-            //         } catch (e) {
-            //           print(e); //show error
-            //         }
-            //       },
-
-            //       icon: Icon(Icons.camera),
-            //       label: Text("Capture"),
-            //     ),
-            //     Container(
-            //       //show captured image
-            //       padding: EdgeInsets.all(30),
-            //       child: imgXFile == null
-            //           ? Text("No image captured")
-            //           : Image.file(
-            //               File(imgXFile!.path),
-            //               height: 500,
-            //               width: 300,
-            //             ),
-            //       //display captured image
-            //     ),
-            //     SizedBox(
-            //       height: 10,
-            //     ),
-            //     Text("What waste do you see?"),
-            //     SizedBox(
-            //       height: 10,
-            //     ),
-            //     CheckboxListTile(
-            //       secondary: const Icon(Icons.add_box),
-            //       title: const Text('Paper'),
-            //       subtitle: Text('Books, Cartons, etc'),
-            //       value: valuePaper,
-            //       onChanged: (bool? value) {
-            //         setState(() {
-            //           valuePaper = value!;
-            //         });
-            //       },
-            //     ),
-            //     CheckboxListTile(
-            //       secondary: const Icon(Icons.add_box),
-            //       title: const Text('Metal'),
-            //       subtitle: Text('Accidental car, plumbing material, etc'),
-            //       value: valueMetal,
-            //       onChanged: (bool? value) {
-            //         setState(() {
-            //           valueMetal = value!;
-            //         });
-            //       },
-            //     ),
-            //     CheckboxListTile(
-            //       secondary: const Icon(Icons.add_box),
-            //       title: const Text('Wooden'),
-            //       subtitle: Text('Furniture, Plywood, etc'),
-            //       value: valueWooden,
-            //       onChanged: (bool? value) {
-            //         setState(() {
-            //           valueWooden = value!;
-            //         });
-            //       },
-            //     ),
-            //     CheckboxListTile(
-            //       secondary: const Icon(Icons.add_box),
-            //       title: const Text('Electronic'),
-            //       subtitle: Text('Batteries, boards, etc'),
-            //       value: valueElectronic,
-            //       onChanged: (bool? value) {
-            //         setState(() {
-            //           valueElectronic = value!;
-            //         });
-            //       },
-            //     ),
-            //     CheckboxListTile(
-            //       secondary: const Icon(Icons.add_box),
-            //       title: const Text('Construction'),
-            //       subtitle: Text('Bricks, Concrete Blocks, etc'),
-            //       value: valueConstruction,
-            //       onChanged: (bool? value) {
-            //         setState(() {
-            //           valueConstruction = value!;
-            //         });
-            //       },
-            //     ),
-            //     SizedBox(
-            //       height: 15,
-            //     ),
-            //     ElevatedButton.icon(
-            //       //image capture button
-            //       onPressed: () {
-            //         postFrameToApi();
-            //         Navigator.push(
-            //             context,
-            //             MaterialPageRoute(
-            //                 builder: (context) => SecurityHomePage()));
-            //       },
-
-            //       icon: Icon(Icons.check_box_sharp),
-            //       label: Text("Submit"),
-            //     ),
-            //     SizedBox(
-            //       height: 35,
-            //     ),
-            //   ])),
-            // ),
-          ],
-        ),
+          ),
+          ElevatedButton(
+            onPressed: _captureAndUpload,
+            child: Text('Capture and Send'),
+          ),
+        ],
       ),
     );
   }
 }
-
-// class DisplayPictureScreen extends StatelessWidget {
-//   final String imagePath;
-
-//   const DisplayPictureScreen({super.key, required this.imagePath});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('Display the Picture')),
-//       // The image is stored as a file on the device. Use the `Image.file`
-//       // constructor with the given path to display the image.
-//       body: Image.file(File(imagePath)),
-//     );
-//   }
-// }
