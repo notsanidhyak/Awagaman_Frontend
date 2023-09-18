@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:avagaman/models/students_out.dart';
 import 'package:avagaman/securityScreens/camera_view.dart';
+import 'package:avagaman/securityScreens/detect.dart';
 import 'package:avagaman/securityScreens/encode.dart';
 
 import 'package:avagaman/securityScreens/profile.dart';
@@ -163,7 +164,7 @@ class _SecurityHomePageState extends State<SecurityHomePage> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.push(
-                          context, MaterialPageRoute(builder: (c) => Encode()));
+                          context, MaterialPageRoute(builder: (c) => Report()));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFff725e),
